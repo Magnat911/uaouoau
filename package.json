@@ -1,23 +1,14 @@
 {
-  "name": "livekit-receptionist",
-  "version": "0.1.0",
-  "private": true,
+  "name": "livekit-vanilla",
+  "version": "1.0.0",
+  "description": "Vanilla JS LiveKit Receptionist",
+  "main": "server.js",
   "scripts": {
-    "build": "next build",
-    "dev": "next dev",
-    "start": "next start"
+    "start": "node server.js",
+    "dev": "node server.js"
   },
   "dependencies": {
-    "livekit-client": "^1.22.0",
-    "livekit-server-sdk": "^0.16.0",
-    "next": "^16.0.0",
-    "react": "^19.0.0",
-    "react-dom": "^19.0.0"
-  },
-  "devDependencies": {
-    "@types/node": "^22",
-    "@types/react": "^19",
-    "@types/react-dom": "^19",
-    "typescript": "^5"
+    "express": "^4.18.2",
+    "livekit-server-sdk": "^0.16.0"
   }
 }

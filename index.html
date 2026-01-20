@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AI Receptionist - LiveKit</title>
+  <script src="https://cdn.jsdelivr.net/npm/livekit-client@latest/dist/livekit-client.umd.min.js"></script>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 1rem;
+    }
+
+    .container {
+      background: white;
+      border-radius: 20px;
+      padding: 2rem;
+      max-width: 500px;
+      width: 100%;
+      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+      text-align: center;
+    }
+
+    .icon {
+      width: 100px;
+      height: 100px;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin: 0 auto 2rem;
+    }
+
+    .icon svg {
+      width: 50px;
+      height: 50px;
+      color: white;
+    }
+
+    h1 {
+      font-size: 1.8rem;
+      margin-bottom: 1rem;
+      color: #333;
+    }
+
+    .status {
+      font-size: 0.95rem;
+      color: #666;
+      margin-bottom: 2rem;
+      height: 60px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    button {
+      width: 100%;
+      padding: 1rem;
+      font-size: 1.1rem;
+      font-weight: 600;
+      border: none;
+      border-radius: 10px;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      margin-bottom: 1rem;
+    }
+
+    button:hover:not(:disabled) {
+      transform: translateY(-2px);
+      box-shadow: 0 10px 20px rgba(102, 126, 234, 0.3);
+    }
+
+    button:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+    }
+
+    .info {
+      font-size: 0.85rem;
+      color: #999;
+      margin-top: 1rem;
+      line-height: 1.6;
+    }
+
+    .error {
+      color: #e74c3c;
+    }
+
+    .success {
+      color: #27ae60;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="icon">
+      <svg fill="currentColor" viewBox="0 0 20 20">
+        <path d="M10 2a3 3 0 00-3 3v6a3 3 0 006 0V5a3 3 0 00-3-3z" />
+        <path d="M4 11a1 1 0 011-1h.01a1 1 0 110 2H5a1 1 0 01-1-1z" />
+        <path d="M15 11a1 1 0 011-1h.01a1 1 0 110 2H16a1 1 0 01-1-1z" />
+        <path d="M8 13a1 1 0 011 1v2.5a1 1 0 11-2 0V14a1 1 0 011-1z" />
+        <path d="M11 13a1 1 0 011 1v2.5a1 1 0 11-2 0V14a1 1 0 011-1z" />
+      </svg>
+    </div>
+
+    <h1>AI Receptionist</h1>
+
+    <div class="status" id="status">Готов начать</div>
+
+    <button id="callButton">Вызвать AI Receptionist</button>
+
+    <div class="info">
+      Нажми кнопку чтобы подключиться к агенту Sage-1242
+    </div>
+  </div>
+
+  <audio id="audioOutput" autoplay style="display: none;"></audio>
+
+  <script>
+    const callButton = document.getElementById('callButton');
+    const statusDiv = document.getElementById('status');
+    const audioOutput = document.getElementById('audioOutput');
+
+    let room = null;
+    let isConnected = false;
+
+    callButton.addEventListener('click', async () => {
+      if (isConnected) {
+        await disconnect();
+        return;
+      }
+
+      await connect();
+    });
+
+    async function connect() {
+      callButton.disabled = true;
+      statusDiv.textContent = 'Получение токена...';
+      statusDiv.className = '';
+
+      try {
+        // Получи токен от backend
+        const tokenResponse = await fetch('/api/token', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            identity: `user-${Date.now()}`,
+          }),
+        });
+
+        if (!tokenResponse.ok) {
+          throw new Error('Failed to get token');
+        }
+
+        const { token, url } = await tokenResponse.json();
+
+        statusDiv.textContent = 'Подключение к агенту...';
+
+        // Создай room
+        room = new window.LivekitClient.Room();
+
+        // Подписывайся на аудио треки
+        room.on(window.LivekitClient.RoomEvent.TrackSubscribed, (track) => {
+          if (track.kind === 'audio') {
+            const mediaStream = new MediaStream([track.mediaStreamTrack]);
+            audioOutput.srcObject = mediaStream;
+            console.log('Audio track received from agent');
+          }
+        });
+
+        // Обработай участников
+        room.on(window.LivekitClient.RoomEvent.ParticipantConnected, (participant) => {
+          console.log('Participant connected:', participant.name);
+          statusDiv.textContent = 'Агент подключился - говори...';
+          statusDiv.className = 'success';
+        });
+
+        // Обработай отключение
+        room.on(window.LivekitClient.RoomEvent.Disconnected, () => {
+          isConnected = false;
+          statusDiv.textContent = 'Отключено';
+          callButton.textContent = 'Вызвать AI Receptionist';
+          callButton.disabled = false;
+          room = null;
+        });
+
+        // Подключись к комнате
+        await room.connect(url, token);
+
+        // Включи микрофон
+        await room.localParticipant.setMicrophoneEnabled(true);
+
+        // Включи аудио воспроизведение
+        if (!room.canPlaybackAudio) {
+          await room.startAudio();
+        }
+
+        isConnected = true;
+        callButton.textContent = 'Завершить разговор';
+        statusDiv.textContent = 'Подключено - ожидание агента...';
+        callButton.disabled = false;
+
+        console.log('Connected to LiveKit room');
+      } catch (error) {
+        console.error('Connection error:', error);
+        statusDiv.textContent = `Ошибка: ${error.message}`;
+        statusDiv.className = 'error';
+        callButton.disabled = false;
+
+        if (room) {
+          await room.disconnect();
+          room = null;
+        }
+      }
+    }
+
+    async function disconnect() {
+      if (room) {
+        await room.disconnect();
+        room = null;
+      }
+
+      isConnected = false;
+      statusDiv.textContent = 'Готов начать';
+      callButton.textContent = 'Вызвать AI Receptionist';
+      callButton.disabled = false;
+      statusDiv.className = '';
+    }
+  </script>
+</body>
+</html>

@@ -1,15 +1,19 @@
-import { AccessToken } from 'livekit-server-sdk';
+const express = require('express');
+const { AccessToken } = require('livekit-server-sdk');
+const path = require('path');
 
-export async function POST(request: Request) {
+const app = express();
+const PORT = process.env.PORT || 3000;
+
+app.use(express.static(path.join(__dirname)));
+app.use(express.json());
+
+app.post('/api/token', (req, res) => {
   try {
-    const body = await request.json();
-    const { identity } = body;
+    const { identity } = req.body;
 
     if (!identity) {
-      return Response.json(
-        { error: 'identity is required' },
-        { status: 400 }
-      );
+      return res.status(400).json({ error: 'identity is required' });
     }
 
     const apiKey = process.env.LIVEKIT_API_KEY;
@@ -18,10 +22,7 @@ export async function POST(request: Request) {
 
     if (!apiKey || !apiSecret || !wsUrl) {
       console.error('Missing LiveKit credentials');
-      return Response.json(
-        { error: 'LiveKit not configured' },
-        { status: 500 }
-      );
+      return res.status(500).json({ error: 'LiveKit not configured' });
     }
 
     const roomName = 'Sage-1242';
@@ -39,18 +40,19 @@ export async function POST(request: Request) {
       canPublishData: true,
     });
 
-    const token = await at.toJwt();
+    const token = at.toJwt();
 
-    return Response.json({
+    res.json({
       token,
       url: wsUrl,
       roomName,
     });
   } catch (error) {
     console.error('Token generation error:', error);
-    return Response.json(
-      { error: 'Failed to generate token' },
-      { status: 500 }
-    );
+    res.status(500).json({ error: 'Failed to generate token' });
   }
-}
+});
+
+app.listen(PORT, () => {
+  console.log(`Server running on http://localhost:${PORT}`);
+});
